@@ -1,0 +1,196 @@
+TAP version 13
+# Subtest: HTML contains a runnable application core
+ok 1 - HTML contains a runnable application core
+  ---
+  duration_ms: 1.115021
+  type: 'test'
+  ...
+# Subtest: empty-scene manipulation is safe
+ok 2 - empty-scene manipulation is safe
+  ---
+  duration_ms: 0.423419
+  type: 'test'
+  ...
+# Subtest: no valid hit means no spawn
+ok 3 - no valid hit means no spawn
+  ---
+  duration_ms: 0.153246
+  type: 'test'
+  ...
+# Subtest: nonfinite coordinates are rejected
+ok 4 - nonfinite coordinates are rejected
+  ---
+  duration_ms: 0.146084
+  type: 'test'
+  ...
+# Subtest: spawn stores position and an independent initial transform
+ok 5 - spawn stores position and an independent initial transform
+  ---
+  duration_ms: 0.82676
+  type: 'test'
+  ...
+# Subtest: movement changes x/z, never y
+ok 6 - movement changes x/z, never y
+  ---
+  duration_ms: 0.41611
+  type: 'test'
+  ...
+# Subtest: movement affects newest duck only
+ok 7 - movement affects newest duck only
+  ---
+  duration_ms: 0.265481
+  type: 'test'
+  ...
+# Subtest: movement is time-based rather than frame-based
+ok 8 - movement is time-based rather than frame-based
+  ---
+  duration_ms: 0.561556
+  type: 'test'
+  ...
+# Subtest: dead zone stops joystick drift
+ok 9 - dead zone stops joystick drift
+  ---
+  duration_ms: 0.435602
+  type: 'test'
+  ...
+# Subtest: rotation changes orientation but not position or scale
+ok 10 - rotation changes orientation but not position or scale
+  ---
+  duration_ms: 0.469021
+  type: 'test'
+  ...
+# Subtest: world-y rotation works on a tilted initial orientation
+ok 11 - world-y rotation works on a tilted initial orientation
+  ---
+  duration_ms: 0.767192
+  type: 'test'
+  ...
+# Subtest: A/B scale uniformly and reciprocally
+ok 12 - A/B scale uniformly and reciprocally
+  ---
+  duration_ms: 0.151068
+  type: 'test'
+  ...
+# Subtest: size limits remain positive and finite
+ok 13 - size limits remain positive and finite
+  ---
+  duration_ms: 1.285041
+  type: 'test'
+  ...
+# Subtest: reset restores all three components of the newest duck only
+ok 14 - reset restores all three components of the newest duck only
+  ---
+  duration_ms: 0.422453
+  type: 'test'
+  ...
+# Subtest: snapshots survive repeated reset and edits
+ok 15 - snapshots survive repeated reset and edits
+  ---
+  duration_ms: 0.110904
+  type: 'test'
+  ...
+# Subtest: part b has a standalone HTML and correct cumulative feature level
+ok 16 - part b has a standalone HTML and correct cumulative feature level
+  ---
+  duration_ms: 1.588599
+  type: 'test'
+  ...
+# Subtest: part c has a standalone HTML and correct cumulative feature level
+ok 17 - part c has a standalone HTML and correct cumulative feature level
+  ---
+  duration_ms: 0.613948
+  type: 'test'
+  ...
+# Subtest: part d has a standalone HTML and correct cumulative feature level
+ok 18 - part d has a standalone HTML and correct cumulative feature level
+  ---
+  duration_ms: 0.634884
+  type: 'test'
+  ...
+# Subtest: part e has a standalone HTML and correct cumulative feature level
+ok 19 - part e has a standalone HTML and correct cumulative feature level
+  ---
+  duration_ms: 0.595178
+  type: 'test'
+  ...
+# Subtest: part f has a standalone HTML and correct cumulative feature level
+ok 20 - part f has a standalone HTML and correct cumulative feature level
+  ---
+  duration_ms: 0.43421
+  type: 'test'
+  ...
+# Subtest: cumulative feature flags prevent later operations in earlier parts
+ok 21 - cumulative feature flags prevent later operations in earlier parts
+  ---
+  duration_ms: 0.197746
+  type: 'test'
+  ...
+# Subtest: one press edge, not release/touch/analog changes, triggers an action
+ok 22 - one press edge, not release/touch/analog changes, triggers an action
+  ---
+  duration_ms: 0.106239
+  type: 'test'
+  ...
+# Subtest: hit subscription uses RIGHT controller targetRaySpace, never viewer
+ok 23 - hit subscription uses RIGHT controller targetRaySpace, never viewer
+  ---
+  duration_ms: 0.221538
+  type: 'test'
+  ...
+# Subtest: left or gaze sources cannot silently substitute for the right controller
+ok 24 - left or gaze sources cannot silently substitute for the right controller
+  ---
+  duration_ms: 0.128342
+  type: 'test'
+  ...
+# Subtest: source creation finishing after disconnect is canceled
+ok 25 - source creation finishing after disconnect is canceled
+  ---
+  duration_ms: 0.114607
+  type: 'test'
+  ...
+# Subtest: missing hit in the next frame clears the old pose
+ok 26 - missing hit in the next frame clears the old pose
+  ---
+  duration_ms: 0.357912
+  type: 'test'
+  ...
+# Subtest: unsupported hit test rejects without a fake-floor fallback
+ok 27 - unsupported hit test rejects without a fake-floor fallback
+  ---
+  duration_ms: 0.454843
+  type: 'test'
+  ...
+# Subtest: right trigger spawns once and right A/B scale; X is not bound on the right
+ok 28 - right trigger spawns once and right A/B scale; X is not bound on the right
+  ---
+  duration_ms: 0.318488
+  type: 'test'
+  ...
+# Subtest: left X resets and left trigger cannot spawn
+ok 29 - left X resets and left trigger cannot spawn
+  ---
+  duration_ms: 0.107032
+  type: 'test'
+  ...
+# Subtest: disconnect cleanup removes button subscriptions
+ok 30 - disconnect cleanup removes button subscriptions
+  ---
+  duration_ms: 0.231423
+  type: 'test'
+  ...
+# Subtest: all cumulative HTML pages contain the same tested core
+ok 31 - all cumulative HTML pages contain the same tested core
+  ---
+  duration_ms: 1.69341
+  type: 'test'
+  ...
+1..31
+# tests 31
+# suites 0
+# pass 31
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 102.290299

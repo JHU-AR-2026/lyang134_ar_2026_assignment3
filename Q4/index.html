@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Q4 - Phong Reflection</title>
+    <style>
+        body { margin: 0; font: 15px Arial, sans-serif; background: #eee; }
+        header { padding: 14px 20px; background: white; }
+        h1 { margin: 0 0 10px; font-size: 22px; }
+        nav { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+        a { color: #174e8a; }
+        button { padding: 5px 12px; cursor: pointer; }
+        #status { margin: 10px 0 0; }
+        #renderCanvas { display: block; width: 100%; height: calc(100vh - 125px); min-height: 300px; touch-action: none; }
+    </style>
+</head>
+<body>
+<header>
+    <h1 id="title">Q4 - Phong Reflection</h1>
+    <nav>
+        <a href="?part=a">(a) Default</a>
+        <a href="?part=b&amp;experiment=1">(b) Experiment 1</a>
+        <a href="?part=b&amp;experiment=2">(b) Experiment 2</a>
+        <a href="?part=b&amp;experiment=3">(b) Experiment 3</a>
+        <a href="?part=c">(c) Two lights</a>
+        <a id="source" href="a/4a.js">JavaScript</a>
+        <button id="save" disabled>Save PNG</button>
+    </nav>
+    <p id="status" role="status">Loading Babylon.js...</p>
+</header>
+<canvas id="renderCanvas" tabindex="0"></canvas>
+<script>
+var canvas = document.getElementById("renderCanvas");
+var engine, scene;
+var query = new URLSearchParams(location.search);
+var part = ["a", "b", "c"].includes(query.get("part")) ? query.get("part") : "a";
+var experiment = Number(query.get("experiment"));
+if (![1, 2, 3].includes(experiment)) experiment = 1;
+var title = "Q4(" + part + ")" + (part === "b" ? " - Experiment " + experiment : "");
+document.getElementById("title").textContent = title + " - Phong Reflection";
+document.title = title;
+document.getElementById("source").href = part + "/4" + part + ".js";
+
+function showError(error) {
+    document.getElementById("status").textContent = "Error: " + (error.message || error);
+    document.getElementById("save").disabled = true;
+    console.error(error);
+}
+function loadScript(url) {
+    return new Promise(function (resolve, reject) {
+        var script = document.createElement("script");
+        var timer = setTimeout(function () { reject(new Error("Loading timed out: " + url)); }, 25000);
+        script.onload = function () { clearTimeout(timer); resolve(); };
+        script.onerror = function () { clearTimeout(timer); reject(new Error("Cannot load " + url)); };
+        script.src = url;
+        document.head.appendChild(script);
+    });
+}
+async function start() {
+    await loadScript("https://cdn.babylonjs.com/babylon.js");
+    await loadScript(part + "/4" + part + ".js");
+    if (part === "b") EXPERIMENT = experiment;
+    engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+    scene = createScene();
+    var material = scene.getMaterialByName("custom");
+    if (material) material.onError = function (effect, errors) { showError(errors); };
+    engine.runRenderLoop(function () { scene.render(); });
+    window.addEventListener("resize", function () { engine.resize(); });
+    scene.executeWhenReady(function () {
+        document.getElementById("status").textContent = "Ready. Drag to look; arrow keys move the camera. Reload to reset the view.";
+        document.getElementById("save").disabled = false;
+    });
+}
+document.getElementById("save").onclick = function () {
+    if (!scene || !scene.isReady()) return;
+    try {
+        scene.render();
+        var link = document.createElement("a");
+        link.download = "Q4" + part + (part === "b" ? "_" + experiment : "") + ".png";
+        link.href = canvas.toDataURL("image/png");
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    } catch (error) { showError(error); }
+};
+start().catch(showError);
+</script>
+</body>
+</html>

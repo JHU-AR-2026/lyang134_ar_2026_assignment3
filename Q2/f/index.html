@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Q2(f) · Duck AR</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;font:15px/1.45 system-ui,sans-serif;color:#172e41;background:#f3f6fa}body{display:grid;grid-template-columns:340px 1fr}#hud{padding:22px;overflow-y:auto;border-right:1px solid #cbd5df}h1{font-size:25px;line-height:1.2;margin:10px 0}h2{font-size:16px;margin:22px 0 8px}p{margin:9px 0}.eyebrow{font-size:12px;letter-spacing:1.4px;font-weight:700}#mode{display:block;font-size:11px;font-weight:700;letter-spacing:.6px;padding:9px 10px;background:#dff0eb;border-radius:6px}#renderCanvas{display:block;width:100%;height:100%;touch-action:none;outline:none;min-width:0}button,a.tab{border:1px solid #b5c4d1;background:#fff;color:#172e41;border-radius:6px;padding:9px 12px;font:inherit;cursor:pointer;text-decoration:none}button:hover,a.tab:hover{background:#e2eaf2}button:disabled{opacity:.5;cursor:not-allowed}button.primary{background:#17694f;color:white;border-color:#17694f}.row{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0}.small{font-size:12px;color:#496172}.panel{border-top:1px solid #ccd7e1;padding-top:12px;margin-top:16px}#message{min-height:62px;padding:10px;border-left:3px solid #17694f;background:#fff}#message.error{border-color:#a12b2b;color:#942525}dl{display:grid;grid-template-columns:85px 1fr;gap:5px;margin:10px 0;font-size:12px}dt{font-weight:700}dd{margin:0;font-family:ui-monospace,monospace;overflow-wrap:anywhere}kbd{font:12px ui-monospace,monospace;background:#fff;border:1px solid #c8d1da;border-radius:3px;padding:1px 4px}nav{display:flex;gap:5px;flex-wrap:wrap;margin:12px 0}a.tab{padding:4px 10px;font-size:12px}a.current{background:#d6e8e2;font-weight:700}[hidden]{display:none!important}#xr-status{overflow-wrap:anywhere}@media(max-width:740px){body{grid-template-columns:1fr;grid-template-rows:auto 55vh}#hud{max-height:45vh;border-right:0}#renderCanvas{height:55vh}}
+</style></head>
+<body>
+<aside id="hud">
+<div class="eyebrow">JHU · AR ASSIGNMENT 3</div>
+<h1>Q2(f) · Duck AR</h1>
+<p class="small">Spawn at a valid controller hit · Move newest Duck · Rotate around world Y · Uniform scaling · Restore spawn transform</p>
+<nav><a class="tab" href="../index.html">Q2</a><a class="tab " href="../b/index.html">b</a><a class="tab " href="../c/index.html">c</a><a class="tab " href="../d/index.html">d</a><a class="tab " href="../e/index.html">e</a><a class="tab current" href="../f/index.html">f</a></nav>
+<span id="mode">DESKTOP PRACTICE · VIRTUAL FLOOR</span>
+<p class="small" id="model-status">Loading Babylon.js and Duck model…</p>
+<p id="message" role="status">Loading external libraries and the Draco decoder.</p>
+<section id="desktop-controls">
+<h2>(b) Choose a location & spawn</h2>
+<p class="small">Click the floor to move the ring; then press <kbd>Space</kbd>. Drag to orbit the camera; scroll to zoom.</p>
+<div class="row"><button class="primary" id="spawn" disabled>Spawn Duck</button><button id="clear">Clear practice</button></div>
+<div data-level="3"><h2>(c) Move · right thumbstick</h2><p class="small">Practice: arrow keys. World X/Z change, Y stays fixed.</p><div class="row"><button data-hold="left">←</button><button data-hold="forward">↑</button><button data-hold="back">↓</button><button data-hold="right">→</button></div></div>
+<div data-level="4"><h2>(d) Rotate · left thumbstick</h2><p class="small">Practice: hold <kbd>Q</kbd> / <kbd>E</kbd> to turn around world Y.</p><div class="row"><button data-hold="turn-left">Turn left</button><button data-hold="turn-right">Turn right</button></div></div>
+<div data-level="5"><h2>(e) Scale · right A / B</h2><div class="row"><button id="grow">A · Larger</button><button id="shrink">B · Smaller</button></div></div>
+<div data-level="6"><h2>(f) Reset · left X</h2><button id="reset">X · Reset newest Duck</button></div>
+</section>
+<section class="panel"><h2>Live state · newest Duck only</h2>
+<dl><dt>Ducks</dt><dd id="count">0</dd><dt>Selected</dt><dd id="latest">None</dd><dt>Position</dt><dd id="position">—</dd><dt>Quaternion</dt><dd id="orientation">—</dd><dt>Scale</dt><dd id="scale-value">—</dd><dt>Reset state</dt><dd id="reset-status">No Duck yet</dd></dl>
+</section>
+<section class="panel"><h2>WebXR controller test</h2><button id="enter-ar" disabled>Enter AR</button><p class="small" id="xr-status">Checking WebXR after model loading…</p>
+<dl><dt>Controllers</dt><dd id="controllers">None</dd><dt>AR hit</dt><dd id="hit-status">Not in AR</dd></dl>
+<p class="small">Right trigger: spawn. Right stick: move. Left stick: rotate. Right A/B: scale. Left X: reset. Controls depend on the selected part.</p>
+<p class="small">Desktop mode uses a virtual floor; AR uses detected surfaces. An emulator provides simulated surfaces. Switching modes clears the scene. Controllers are required.</p></section>
+</aside>
+<canvas id="renderCanvas" tabindex="0" aria-label="Interactive Duck scene"></canvas>
+<script id="q2-core">
+/* Q2 interaction state. Arrays use [x,y,z] and quaternion [x,y,z,w].
+   Transform state is independent of rendering. */
+(() => {
+  const clamp = (x,a,b) => Math.max(a,Math.min(b,x));
+  const axis = x => Number.isFinite(x) && Math.abs(x)>0.15 ? clamp(x,-1,1) : 0;
+  const seconds = dt => Number.isFinite(dt) ? clamp(dt,0,0.05) : 0;
+  const finite = (a,n) => Array.isArray(a) && a.length===n && a.every(Number.isFinite);
+  const copyTransform = d => ({position:[...d.position],rotation:[...d.rotation],scale:[...d.scale]});
+
+  class DuckState {
+    constructor(level=6) { this.level=level; this.ducks=[]; }
+    get latest() { return this.ducks[this.ducks.length-1] || null; }
+    // (b) Spawn from a valid hit pose.
+    spawn(pose) {
+      if (!pose || !finite(pose.position,3) || !finite(pose.rotation,4)) return null;
+      const length=Math.hypot(...pose.rotation);
+      if (length<1e-8) return null;
+      const duck={id:this.ducks.length+1, position:[...pose.position],
+        rotation:pose.rotation.map(x=>x/length), scale:[1,1,1]};
+      duck.initial=copyTransform(duck); // Save independent copies.
+      this.ducks.push(duck);
+      return duck;
+    }
+    // (c): World X/Z motion; world Y remains unchanged. Speed = 0.5 m/s.
+    move(x,z,dt) {
+      const d=this.latest; if (!d || this.level<3) return false;
+      x=axis(x); z=axis(z);
+      const norm=Math.max(1,Math.hypot(x,z));
+      const step=0.5*seconds(dt)/norm;
+      d.position[0]+=x*step; d.position[2]+=z*step;
+      return true;
+    }
+    // (d): Premultiply by a world-Y quaternion; position is unchanged.
+    rotate(input,dt) {
+      const d=this.latest; if (!d || this.level<4) return false;
+      const angle=axis(input)*Math.PI/2*seconds(dt); // 90 degrees per second.
+      if (!angle) return true;
+      const s=Math.sin(angle/2), c=Math.cos(angle/2), [x,y,z,w]=d.rotation;
+      const q=[c*x+s*z, c*y+s*w, c*z-s*x, c*w-s*y];
+      const n=Math.hypot(...q); d.rotation=q.map(v=>v/n);
+      return true;
+    }
+    // (e) Uniform scaling, limited to 0.1-4 times the initial size.
+    resize(factor) {
+      const d=this.latest;
+      if (!d || this.level<5 || !Number.isFinite(factor) || factor<=0) return false;
+      const next=clamp(d.scale[0]*factor,0.1,4);
+      d.scale=[next,next,next]; return true;
+    }
+    // (f): Restore all of the most recent Duck's saved spawn transform.
+    reset() {
+      const d=this.latest; if (!d || this.level<6) return false;
+      Object.assign(d,copyTransform(d.initial)); return true;
+    }
+    clear() { this.ducks=[]; }
+  }
+
+  // A press fires once. Touch changes, held analog changes and release do not.
+  function isPressEdge(component) {
+    return !!(component && component.changes && component.changes.pressed && component.pressed);
+  }
+
+  /* Native WebXR hit testing.
+     Reference: MDN XRSession.requestHitTestSource and XRInputSource.targetRaySpace. */
+  class ControllerHitTest {
+    constructor() { this.source=null; this.latest=null; this.generation=0; this.error=null; }
+    stop() {
+      this.generation++;
+      if (this.source) { try { this.source.cancel(); } catch (_) {} }
+      this.source=null; this.latest=null; this.error=null;
+    }
+    async start(session,inputSource) {
+      this.stop();
+      if (!session || !inputSource || inputSource.handedness!=='right' ||
+          inputSource.targetRayMode!=='tracked-pointer' || !inputSource.targetRaySpace) return false;
+      if (typeof session.requestHitTestSource!=='function') throw new Error('Native WebXR hit testing is unavailable.');
+      const token=this.generation;
+      // The default ray points along -Z in controller space.
+      const source=await session.requestHitTestSource({space:inputSource.targetRaySpace});
+      if (token!==this.generation) { source.cancel(); return false; }
+      this.source=source; return true;
+    }
+    read(frame,referenceSpace) {
+      this.latest=null; this.error=null; // Invalidate old results every frame.
+      if (!this.source || !frame || !referenceSpace) return null;
+      try {
+        const hit=frame.getHitTestResults(this.source)[0];
+        const pose=hit && hit.getPose(referenceSpace);
+        if (!pose) return null;
+        const p=pose.transform.position,q=pose.transform.orientation;
+        const result={position:[p.x,p.y,p.z],rotation:[q.x,q.y,q.z,q.w]};
+        if (finite(result.position,3) && finite(result.rotation,4)) this.latest=result;
+      } catch (error) { this.error=String(error.message || error); }
+      return this.latest;
+    }
+  }
+
+  function wireMotionController(hand,motion,actions) {
+    const subscriptions=[];
+    const bind=(id,fn)=>{
+      const c=motion.getComponent(id);
+      if (!c) return;
+      const observer=c.onButtonStateChangedObservable.add(()=>{if(isPressEdge(c)) fn();});
+      subscriptions.push([c.onButtonStateChangedObservable,observer]);
+    };
+    if(hand==='right') {
+      bind('xr-standard-trigger',actions.spawn);
+      bind('a-button',()=>actions.scale(1.1));
+      bind('b-button',()=>actions.scale(1/1.1));
+    } else if(hand==='left') bind('x-button',actions.reset);
+    const stick=motion.getComponent('xr-standard-thumbstick') ||
+      (motion.getComponentOfType ? motion.getComponentOfType('thumbstick') : null);
+    return {stick,dispose(){subscriptions.forEach(([observable,observer])=>observable.remove(observer));}};
+  }
+  globalThis.Q2Core={DuckState,isPressEdge,ControllerHitTest,wireMotionController};
+})();
+
+</script>
+<script id="q2-app">
+/* Scene setup, model loading, and desktop/WebXR input. */
+const LEVEL = 6;
+const PART = 'f';
+const {DuckState,ControllerHitTest,wireMotionController}=Q2Core;
+const $=id=>document.getElementById(id);
+const state=new DuckState(LEVEL);
+const modelViews=new Map();
+const hitTest=new ControllerHitTest();
+const controllers=new Map();
+const keyDown=new Set();
+const heldButtons=new Set();
+let engine,scene,camera,template,ground,grid,marker,rightRay,xr;
+let ready=false,inAR=false,enteringAR=false,queuedSpawn=false,rightController=null;
+let desktopHit={position:[0,0,0],rotation:[0,0,0,1]};
+let lastPanelTime=0;
+
+function message(text) { $('message').textContent=text; }
+function errorMessage(text) { $('message').classList.add('error'); message(text); }
+function loadScript(url) {
+  return new Promise((resolve,reject)=>{
+    const tag=document.createElement('script');
+    const timer=setTimeout(()=>reject(new Error('Library download timed out: '+url)),20000);
+    tag.src=url;
+    tag.onload=()=>{clearTimeout(timer);resolve();};
+    tag.onerror=()=>{clearTimeout(timer);reject(new Error('Could not download '+url));};
+    document.head.appendChild(tag);
+  });
+}
+
+// Scene setup: right-handed, Y-up.
+async function boot() {
+  if(location.protocol==='file:') {
+    errorMessage('Open this folder with Servez, then use its localhost URL. Do not double-click the HTML file.');
+    return;
+  }
+  await loadScript('https://cdn.babylonjs.com/babylon.js');
+  await loadScript('https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js');
+  engine=new BABYLON.Engine($('renderCanvas'),true);
+  scene=new BABYLON.Scene(engine);
+  scene.useRightHandedSystem=true; // Native WebXR poses can be used without flipping Z.
+  scene.clearColor=new BABYLON.Color4(0.93,0.95,0.97,1);
+  camera=new BABYLON.ArcRotateCamera('desktop-camera',Math.PI/2,Math.PI/3,2.8,
+    new BABYLON.Vector3(0,0.15,0),scene);
+  camera.minZ=0.01;camera.lowerRadiusLimit=0.5;camera.upperRadiusLimit=12;
+  camera.wheelPrecision=80;camera.attachControl($('renderCanvas'),true);
+  camera.inputs.removeByType('ArcRotateCameraKeyboardMoveInput'); // Keys move the Duck, not camera.
+  new BABYLON.HemisphericLight('ambient',new BABYLON.Vector3(0,1,0),scene).intensity=1.0;
+  new BABYLON.DirectionalLight('key',new BABYLON.Vector3(-0.5,-1,-0.3),scene).intensity=1.5;
+  ground=BABYLON.MeshBuilder.CreateGround('practice-floor',{width:6,height:6},scene);
+  const mat=new BABYLON.StandardMaterial('practice-floor-material',scene);
+  mat.diffuseColor=new BABYLON.Color3(0.8,0.85,0.88);mat.specularColor=BABYLON.Color3.Black();
+  ground.material=mat;
+  const lines=[];
+  for(let t=-3;t<=3;t+=0.25){
+    lines.push([new BABYLON.Vector3(t,.001,-3),new BABYLON.Vector3(t,.001,3)]);
+    lines.push([new BABYLON.Vector3(-3,.001,t),new BABYLON.Vector3(3,.001,t)]);
+  }
+  grid=BABYLON.MeshBuilder.CreateLineSystem('practice-grid',{lines},scene);
+  grid.color=new BABYLON.Color3(.60,.67,.73);grid.isPickable=false;
+  marker=BABYLON.MeshBuilder.CreateTorus('placement-marker',{diameter:.12,thickness:.008,tessellation:32},scene);
+  const markerMat=new BABYLON.StandardMaterial('marker-material',scene);
+  markerMat.emissiveColor=new BABYLON.Color3(0,.5,.36);markerMat.disableLighting=true;
+  marker.material=markerMat;marker.isPickable=false;
+  marker.rotationQuaternion=BABYLON.Quaternion.Identity();
+  rightRay=BABYLON.MeshBuilder.CreateLines('right-controller-ray',{
+    points:[BABYLON.Vector3.Zero(),new BABYLON.Vector3(0,0,-1)],updatable:true},scene);
+  rightRay.color=new BABYLON.Color3(0,.85,.55);rightRay.isPickable=false;rightRay.setEnabled(false);
+  showMarker(desktopHit);
+  window.addEventListener('resize',()=>engine.resize());
+  setupDesktop();
+  scene.onBeforeRenderObservable.add(()=>{
+    const dt=engine.getDeltaTime()/1000;
+    if(inAR) updateXRSticks(dt); else if(!enteringAR) updateDesktop(dt);
+    syncLatest();
+    if(performance.now()-lastPanelTime>100){refreshPanel();lastPanelTime=performance.now();}
+  });
+  engine.runRenderLoop(()=>scene.render());
+  await loadDuck();
+  ready=true;
+  $('model-status').textContent='Duck loaded · Babylon.js '+BABYLON.Engine.Version;
+  $('spawn').disabled=false;
+  message('Click the practice floor to choose a location, then press Space or Spawn Duck.');
+  await setupXR();
+}
+
+// (a) Load the model once and place its pivot at the bottom center.
+async function loadDuck() {
+  const assetURL=new URL('../a/assets/',location.href).href;
+  const result=await BABYLON.SceneLoader.ImportMeshAsync('',assetURL,'Duck.glb',scene);
+  template=new BABYLON.TransformNode('duck-template',scene);
+  // Preserve the imported hierarchy and its original coordinate conversion/scale.
+  result.meshes.filter(m=>!m.parent).forEach(m=>m.parent=template);
+  result.meshes.forEach(m=>{m.isPickable=false;m.computeWorldMatrix(true);});
+  const bounds=template.getHierarchyBoundingVectors();
+  const height=bounds.max.y-bounds.min.y;
+  if(!Number.isFinite(height) || height<=0) throw new Error('Duck has an invalid bounding box.');
+  const factor=0.25/height; // Initial model height: 25 cm.
+  template.scaling.setAll(factor);
+  template.position.set(-(bounds.min.x+bounds.max.x)*factor/2,
+    -bounds.min.y*factor,-(bounds.min.z+bounds.max.z)*factor/2);
+  template.setEnabled(false);
+}
+
+// (b-f) Shared actions for desktop and controller inputs.
+function spawnAt(pose) {
+  if(!ready || !pose) {message('No valid placement hit; no Duck was spawned.');return;}
+  const duck=state.spawn(pose);if(!duck)return;
+  const root=new BABYLON.TransformNode('duck-'+duck.id,scene);
+  root.rotationQuaternion=BABYLON.Quaternion.Identity();
+  const visual=template.clone('duck-'+duck.id+'-geometry',root);
+  visual.setEnabled(true);
+  modelViews.set(duck.id,root);
+  syncLatest();refreshPanel();
+  message('Spawned Duck '+duck.id+'. Only this newest Duck responds to manipulation.');
+}
+function syncLatest() {
+  const d=state.latest;if(!d)return;
+  const view=modelViews.get(d.id);if(!view)return;
+  view.position.set(...d.position);view.rotationQuaternion.set(...d.rotation);view.scaling.set(...d.scale);
+}
+function scaleLatest(factor){if(state.resize(factor)){syncLatest();refreshPanel();}}
+function resetLatest(){if(state.reset()){syncLatest();refreshPanel();message('Newest Duck restored to its own spawn position, orientation and scale.');}}
+function clearDucks(){modelViews.forEach(m=>m.dispose());modelViews.clear();state.clear();queuedSpawn=false;refreshPanel();}
+function showMarker(pose){
+  if(!marker)return;
+  marker.setEnabled(!!pose);
+  if(pose){marker.position.set(...pose.position);marker.position.y+=.003;marker.rotationQuaternion.set(...pose.rotation);}
+}
+function refreshPanel(){
+  $('count').textContent=String(state.ducks.length);
+  const d=state.latest;
+  $('latest').textContent=d?'Duck '+d.id:'None';
+  $('position').textContent=d?d.position.map(v=>v.toFixed(3)).join(', '):'—';
+  $('orientation').textContent=d?d.rotation.map(v=>v.toFixed(3)).join(', '):'—';
+  $('scale-value').textContent=d?d.scale.map(v=>v.toFixed(3)).join(', '):'—';
+  $('reset-status').textContent=d?(JSON.stringify({p:d.position,q:d.rotation,s:d.scale})===
+    JSON.stringify({p:d.initial.position,q:d.initial.rotation,s:d.initial.scale})?'At spawn transform':'Modified'):'No Duck yet';
+}
+
+// Desktop controls use the virtual floor; AR uses native hit testing.
+function setupDesktop(){
+  document.querySelectorAll('[data-level]').forEach(el=>{el.hidden=Number(el.dataset.level)>LEVEL;});
+  scene.onPointerObservable.add(info=>{
+    if(inAR || enteringAR || info.type!==BABYLON.PointerEventTypes.POINTERPICK)return;
+    const pick=scene.pick(scene.pointerX,scene.pointerY,m=>m===ground);
+    if(pick && pick.hit && pick.pickedPoint){
+      desktopHit={position:[pick.pickedPoint.x,0,pick.pickedPoint.z],rotation:[0,0,0,1]};
+      showMarker(desktopHit);message('Practice target selected. Press Space or Spawn Duck.');
+    }
+  });
+  $('spawn').onclick=()=>{if(!inAR && !enteringAR)spawnAt(desktopHit);};
+  $('grow').onclick=()=>{if(!inAR && !enteringAR)scaleLatest(1.1);};
+  $('shrink').onclick=()=>{if(!inAR && !enteringAR)scaleLatest(1/1.1);};
+  $('reset').onclick=()=>{if(!inAR && !enteringAR)resetLatest();};
+  $('clear').onclick=()=>{if(!inAR && !enteringAR){clearDucks();message('Scene cleared.');}};
+  document.querySelectorAll('[data-hold]').forEach(button=>{
+    button.addEventListener('pointerdown',e=>{button.setPointerCapture(e.pointerId);heldButtons.add(button.dataset.hold);e.preventDefault();});
+    ['pointerup','pointercancel','lostpointercapture'].forEach(type=>button.addEventListener(type,()=>heldButtons.delete(button.dataset.hold)));
+  });
+  const allowed=['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyQ','KeyE','KeyA','KeyB','KeyX','Space'];
+  window.addEventListener('keydown',e=>{
+    if(inAR || enteringAR || !allowed.includes(e.code) || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;
+    e.preventDefault();keyDown.add(e.code);
+    if(e.repeat)return;
+    if(e.code==='Space')spawnAt(desktopHit);
+    if(e.code==='KeyA')scaleLatest(1.1);
+    if(e.code==='KeyB')scaleLatest(1/1.1);
+    if(e.code==='KeyX')resetLatest();
+  });
+  window.addEventListener('keyup',e=>keyDown.delete(e.code));
+  window.addEventListener('blur',()=>{keyDown.clear();heldButtons.clear();});
+  document.addEventListener('visibilitychange',()=>{keyDown.clear();heldButtons.clear();});
+}
+function updateDesktop(dt){
+  const held=(key,button)=>keyDown.has(key)||heldButtons.has(button)?1:0;
+  state.move(held('ArrowRight','right')-held('ArrowLeft','left'),held('ArrowDown','back')-held('ArrowUp','forward'),dt);
+  state.rotate(held('KeyE','turn-right')-held('KeyQ','turn-left'),dt);
+}
+
+// WebXR controller input and surface hit testing.
+async function setupXR(){
+  if(!window.isSecureContext || !navigator.xr){
+    $('xr-status').textContent='WebXR not available here. Desktop practice is still usable.';return;
+  }
+  try{
+    if(!await navigator.xr.isSessionSupported('immersive-ar')){
+      $('xr-status').textContent='No immersive-AR device detected. Use a compatible headset or the WebXR emulator.';return;
+    }
+    xr=await scene.createDefaultXRExperienceAsync({
+      disableDefaultUI:true,disableTeleportation:true,disablePointerSelection:true,
+      disableNearInteraction:true,disableHandTracking:true,ignoreNativeCameraTransformation:true,
+      inputOptions:{doNotLoadControllerMeshes:true}
+    });
+    if(!xr.baseExperience || !xr.input)throw new Error('WebXR initialization did not complete.');
+    const sm=xr.baseExperience.sessionManager;
+    xr.input.onControllerAddedObservable.add(controller=>{
+      const hand=controller.inputSource.handedness;
+      if(hand!=='right' && hand!=='left')return;
+      const record={controller,hand,binding:null,initObserver:null};
+      controllers.set(controller.uniqueId,record);
+      const init=motion=>{
+        if(!controllers.has(controller.uniqueId))return;
+        if(record.binding)record.binding.dispose();
+        record.binding=wireMotionController(hand,motion,{
+          spawn:()=>{if(inAR && controller===rightController)queuedSpawn=true;},
+          scale:factor=>{if(inAR)scaleLatest(factor);},reset:()=>{if(inAR)resetLatest();}
+        });
+        updateControllerLabel();
+      };
+      if(controller.motionController)init(controller.motionController);
+      else record.initObserver=controller.onMotionControllerInitObservable.addOnce(init);
+      if(hand==='right'){
+        rightController=controller;
+        hitTest.start(sm.session,controller.inputSource).then(ok=>{
+          if(ok)$('xr-status').textContent='Controller hit test active. Aim the right ray at a detected surface.';
+        }).catch(error=>{$('xr-status').textContent='Controller hit test failed: '+error.message;message('Check AR permissions, room setup and hit-test support.');});
+      }
+      updateControllerLabel();
+    });
+    xr.input.onControllerRemovedObservable.add(controller=>{
+      const record=controllers.get(controller.uniqueId);
+      if(record){if(record.binding)record.binding.dispose();if(record.initObserver)controller.onMotionControllerInitObservable.remove(record.initObserver);}
+      controllers.delete(controller.uniqueId);
+      if(rightController===controller){rightController=null;hitTest.stop();queuedSpawn=false;rightRay.setEnabled(false);showMarker(null);}
+      updateControllerLabel();
+    });
+    // Process queued trigger presses after obtaining the current frame's hit.
+    sm.onXRFrameObservable.add(frame=>{
+      if(!inAR)return;
+      const pose=hitTest.read(frame,sm.referenceSpace);
+      showMarker(pose);
+      $('hit-status').textContent=pose?'Valid controller hit':'No valid controller hit';
+      if(hitTest.error)$('xr-status').textContent='Hit-test error: '+hitTest.error;
+      drawControllerRay(frame,sm.referenceSpace,pose);
+      if(queuedSpawn){queuedSpawn=false;spawnAt(pose);}
+    });
+    xr.baseExperience.onStateChangedObservable.add(status=>{
+      if(status===BABYLON.WebXRState.IN_XR){
+        inAR=true;enteringAR=false;ground.setEnabled(false);grid.setEnabled(false);
+        $('desktop-controls').hidden=true;$('mode').textContent='WEBXR AR · CONTROLLER INPUT';
+        $('enter-ar').textContent='Exit AR';$('enter-ar').disabled=false;
+        message('Aim the right-controller ray. A ring appears only at a valid WebXR surface hit.');
+      }else if(status===BABYLON.WebXRState.NOT_IN_XR){
+        inAR=false;enteringAR=false;hitTest.stop();rightController=null;queuedSpawn=false;
+        controllers.forEach(r=>{if(r.binding)r.binding.dispose();});controllers.clear();
+        clearDucks();ground.setEnabled(true);grid.setEnabled(true);rightRay.setEnabled(false);showMarker(desktopHit);
+        $('desktop-controls').hidden=false;$('mode').textContent='DESKTOP PRACTICE · VIRTUAL FLOOR';
+        $('enter-ar').textContent='Enter AR';$('enter-ar').disabled=false;
+        updateControllerLabel();
+      }
+    });
+    $('enter-ar').disabled=false;
+    $('xr-status').textContent='AR available. Enter AR to test controller input (headset or emulator).';
+    $('enter-ar').onclick=async()=>{
+      if(enteringAR)return;
+      $('enter-ar').disabled=true;
+      try{
+        if(inAR){await xr.baseExperience.exitXRAsync();return;}
+        enteringAR=true;clearDucks();keyDown.clear();heldButtons.clear();showMarker(null);
+        // Require native hit testing for the AR session.
+        await xr.baseExperience.enterXRAsync('immersive-ar','local-floor',xr.renderTarget,
+          {requiredFeatures:['hit-test']});
+      }catch(error){
+        enteringAR=false;$('enter-ar').disabled=false;showMarker(desktopHit);
+        $('xr-status').textContent='AR entry failed: '+error.message;
+        message('Desktop practice remains available. AR needs a compatible device/emulator, secure page and hit-test support.');
+      }
+    };
+  }catch(error){$('xr-status').textContent='WebXR setup failed: '+error.message;}
+}
+function updateXRSticks(dt){
+  // Require tracked poses, not stale controller axes after tracking is lost.
+  const sm=xr.baseExperience.sessionManager;
+  controllers.forEach(record=>{
+    const stick=record.binding && record.binding.stick;
+    if(!stick || !sm.currentFrame || !sm.referenceSpace)return;
+    if(!sm.currentFrame.getPose(record.controller.inputSource.targetRaySpace,sm.referenceSpace))return;
+    if(record.hand==='right')state.move(stick.axes.x,stick.axes.y,dt);
+    if(record.hand==='left')state.rotate(stick.axes.x,dt);
+  });
+}
+function updateControllerLabel(){
+  $('controllers').textContent=[...controllers.values()].map(r=>r.hand+(r.binding?' ready':' initializing')).join(' · ')||'None';
+}
+function drawControllerRay(frame,referenceSpace,hit){
+  if(!rightController || !referenceSpace){rightRay.setEnabled(false);return;}
+  const pose=frame.getPose(rightController.inputSource.targetRaySpace,referenceSpace);
+  if(!pose){rightRay.setEnabled(false);return;}
+  const m=BABYLON.Matrix.FromArray(pose.transform.matrix);
+  const p=pose.transform.position;
+  const origin=new BABYLON.Vector3(p.x,p.y,p.z);
+  const direction=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0,0,-1),m).normalize();
+  const endpoint=hit?new BABYLON.Vector3(...hit.position):origin.add(direction.scale(3));
+  BABYLON.MeshBuilder.CreateLines(null,{points:[origin,endpoint],instance:rightRay});
+  rightRay.setEnabled(true);
+}
+boot().catch(error=>{
+  ready=false;errorMessage('Could not start: '+error.message+' — Check internet access, Servez, and ../a/assets/Duck.glb.');
+  $('model-status').textContent='Load failed';console.error(error);
+});
+
+</script>
+</body></html>
